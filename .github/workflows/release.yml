@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+            triplet: linux-glibc-x86_64
+          # - os: ubuntu-24.04-arm
+          #   arch: aarch64
+          #   triplet: linux-glibc-aarch64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake autoconf systemtap-sdt-dev
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DJEMALLOC_LG_PROF_SAMPLE=19
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: cd build && ctest --output-on-failure
+
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE="jemalloc-${VERSION}-${{ matrix.triplet }}.tar.gz"
+
+          mkdir -p pkg/lib pkg/include pkg/LICENSES
+          cp build/libjemalloc.so.2 pkg/lib/
+          ln -sf libjemalloc.so.2 pkg/lib/libjemalloc.so
+          cp build/jemalloc/install/include/jemalloc/jemalloc.h pkg/include/ || true
+          cp LICENSE pkg/LICENSES/
+          echo "{\"version\":\"${VERSION}\",\"jemalloc\":\"${JEMALLOC_VERSION}\",\"arch\":\"${{ matrix.arch }}\"}" > pkg/build-metadata.json
+          cd pkg && sha256sum lib/* > SHA256SUMS
+          cd .. && tar czf "${ARCHIVE}" -C pkg .
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARCHIVE }}

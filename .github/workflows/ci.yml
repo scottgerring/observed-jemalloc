@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+          # aarch64 cross-compilation or native runner can be added later
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake autoconf systemtap-sdt-dev
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DJEMALLOC_LG_PROF_SAMPLE=19
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Check USDT notes
+        run: |
+          readelf -n build/libjemalloc.so.2 | grep -i otel
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libjemalloc-${{ matrix.arch }}
+          path: |
+            build/libjemalloc.so*

@@ -1,0 +1,11 @@
+observed-jemalloc
+Copyright 2024 Scott Gerring.
+
+A drop-in libjemalloc.so with OTel heap-profiling USDTs.
+
+This product bundles jemalloc, which is available under a BSD-2-Clause license.
+See: https://github.com/jemalloc/jemalloc/blob/dev/COPYING
+
+USDT probe emission uses the SystemTap SDT header (<sys/sdt.h>), which is
+available under the GPL-2.0-or-later license with a special exception for
+inclusion in non-GPL programs.
